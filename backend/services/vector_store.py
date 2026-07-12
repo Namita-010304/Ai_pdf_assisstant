@@ -3,7 +3,7 @@ import uuid
 from qdrant_client import QdrantClient
 from qdrant_client.models import (
     Distance, VectorParams, PointStruct, Filter, FieldCondition,
-    MatchValue, MatchAny, FilterSelector
+    MatchValue, MatchAny, FilterSelector, PayloadSchemaType
 )
 from google import genai
 from google.genai import types
@@ -69,6 +69,16 @@ def _ensure_collection():
             collection_name=COLLECTION_NAME,
             vectors_config=VectorParams(size=VECTOR_SIZE, distance=Distance.COSINE),
         )
+
+    # 👇 ADD THIS (Fix 2)
+    try:
+        client.create_payload_index(
+            collection_name=COLLECTION_NAME,
+            field_name="doc_id",
+            field_schema=PayloadSchemaType.INTEGER,
+        )
+    except Exception as e:
+        print(f"Payload index already exists: {e}")
 
 
 def _embed(text: str, api_key: str | None = None) -> list[float]:
