@@ -92,7 +92,11 @@ def _process_pdf_background(file_path: str, doc_id: int, original_name: str, db_
     from sqlalchemy.orm import sessionmaker
     from models import Document
 
-    engine = create_engine(db_url, pool_pre_ping=True)
+    connect_args = {}
+    if db_url.startswith("sqlite"):
+        connect_args["check_same_thread"] = False
+
+    engine = create_engine(db_url, pool_pre_ping=True, connect_args=connect_args)
     SessionBg = sessionmaker(bind=engine)
     db = SessionBg()
 
@@ -136,7 +140,7 @@ async def upload_pdf(
     db.commit()
     db.refresh(doc)
 
-    db_url = os.getenv("DATABASE_URL", "mysql+mysqlconnector://root:root@localhost:3306/pdf_assistant_db")
+    from database import DATABASE_URL as db_url
     background_tasks.add_task(
         _process_pdf_background, file_path, doc.id, file.filename, db_url
     )
