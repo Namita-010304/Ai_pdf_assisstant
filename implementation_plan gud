@@ -1,0 +1,70 @@
+# Architectural Refactoring: LLM Service Layer & Batch Embeddings
+
+Improve the application architecture and API efficiency by introducing a dedicated LLM Service layer, batching embedding requests, and optimizing chat session state.
+
+## User Review Required
+
+> [!IMPORTANT]
+> The new design transitions chat history from stateful Gemini Chat objects (`gc.chats.create`) to stateless prompt completions (`gc.models.generate_content`). 
+> This is cleaner and faster because conversation history is already managed database-side and passed down on each request.
+
+> [!TIP]
+> Batching embeddings will group chunk uploads together, reducing the time required to index PDFs and significantly reducing API request overhead.
+
+## Open Questions
+No open questions at this time. The plan follows the explicit instructions provided.
+
+---
+
+## Proposed Changes
+
+### Backend LLM Service Layer
+
+#### [NEW] [llm_service.py](file:///d:/ai%20powered%20pdf%20assisstant/backend/services/llm_service.py)
+Create a new LLM service abstraction. This decouples our FastAPI routes and business logic from the specific LLM providers.
+- Implement a `GeminiProvider` class that handles text generation and translation using the cached client.
+- Implement an `LLMService` class that acts as the entry point for all route handlers.
+- Future-proof the architecture for other providers (e.g., OpenAI).
+
+---
+
+### Backend Vector Store
+
+#### [MODIFY] [vector_store.py](file:///d:/ai%20powered%20pdf%20assisstant/backend/services/vector_store.py)
+- Implement `_embed_batch` to support embedding multiple text segments in a single Gemini API call.
+- Update `upsert_chunks` to batch embedding generation (e.g., in batches of 100 chunks), instead of looping and calling the API individually per chunk.
+- Export `get_genai_client` so it can be reused across services instead of recreating the GenAI client on each chat request.
+
+---
+
+### Backend Chat and RAG Services
+
+#### [MODIFY] [chat_rag.py](file:///d:/ai%20powered%20pdf%20assisstant/backend/services/chat_rag.py)
+- Refactor `get_answer()` to use `llm_service` instead of creating direct client instances.
+- Build the conversation history using standard content objects and call `llm_service.generate()` statelessly instead of creating and destroying chat sessions for every request.
+
+---
+
+### FastAPI Route Handlers
+
+#### [MODIFY] [main.py](file:///d:/ai%20powered%20pdf%20assisstant/backend/main.py)
+- Import and use `LLMService` in route handlers.
+- Update the `/translate` route to call `llm_service.translate()` instead of instantiating Gemini client directly.
+
+---
+
+## Verification Plan
+
+### Automated Tests
+We will verify all changes using the existing verification pipeline:
+- Run the strict backend test command:
+  ```powershell
+  cd "d:\ai powered pdf assisstant\backend"
+  ..\venv\Scripts\python verify_rag_strict.py
+  ```
+
+### Manual Verification
+1. Open the application interface.
+2. Upload a new PDF to ensure batch embedding processing functions correctly.
+3. Submit a chat query in English and Hindi to verify RAG responses and source citation extraction.
+4. Trigger translation on a response and verify translation outputs.

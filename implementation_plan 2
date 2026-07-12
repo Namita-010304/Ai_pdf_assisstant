@@ -1,0 +1,120 @@
+# AI-Powered PDF Learning Assistant for Students (Python RAG Stack)
+
+Design and develop a production-ready, modular monolith backend and a modern frontend for the AI-powered PDF Learning Assistant. This stack uses **Python + FastAPI**, **MySQL** for relational metadata, **Qdrant** (local storage) for Vector Search, and **React + TypeScript + Tailwind CSS** for the user interface.
+
+## User Review Required
+> [!IMPORTANT]
+> - **Python installation**: We will configure a project-specific virtual environment. If Python is not installed globally or registered in your system PATH, we recommend installing Python 3.12 via `winget install Python.Python.3.12` or python.org.
+> - **MySQL credentials**: The application will expect MySQL server details. We will configure these in a root `.env` file (Database: `pdf_assistant_db`, User: `root`, password: default or configurable).
+> - **Gemini API Key**: A `GEMINI_API_KEY` is required. It can be provided in the backend `.env` file or dynamically entered via the frontend settings screen.
+
+---
+
+## Proposed Changes
+
+The project will be organized into a `backend` folder (FastAPI) and a `frontend` folder (React + Vite + Tailwind CSS).
+
+### Backend (Python + FastAPI)
+
+Create a FastAPI application in the workspace under a `backend` folder.
+
+#### [NEW] [backend/requirements.txt](file:///d:/ai%20powered%20pdf%20assisstant/backend/requirements.txt)
+Lists all Python packages:
+- `fastapi`, `uvicorn` (core API layer)
+- `mysql-connector-python`, `sqlalchemy` (MySQL connection & ORM)
+- `qdrant-client` (vector database client running in local disk mode)
+- `pymupdf` (PDF extraction)
+- `pytesseract`, `pillow` (OCR fallback for scanned PDFs)
+- `google-generativeai` (Gemini model interface for embeddings and chat generation)
+- `python-multipart` (handles PDF file uploads)
+- `python-dotenv` (loads env variables)
+- `pydantic` (validation)
+- `websockets` (for voice streaming if applicable)
+
+#### [NEW] [backend/.env](file:///d:/ai%20powered%20pdf%20assisstant/backend/.env)
+Contains server configurations:
+```ini
+PORT=8000
+DATABASE_URL=mysql+mysqlconnector://root:password@localhost:3306/pdf_assistant_db
+GEMINI_API_KEY=your_gemini_api_key
+QDRANT_PATH=./qdrant_db
+UPLOAD_DIR=./uploads
+```
+
+#### [NEW] [backend/database.py](file:///d:/ai%20powered%20pdf%20assisstant/backend/database.py)
+Initializes SQLAlchemy engine for MySQL. Sets up session maker and base model class. Creates tables on startup if they don't exist.
+
+#### [NEW] [backend/models.py](file:///d:/ai%20powered%20pdf%20assisstant/backend/models.py)
+Defines relational DB models storing metadata:
+- `Document`: File name, page count, file path, upload time.
+- `Message`: Chat history (sender: user/bot, query text, audio paths, timestamp, citations, conversation ID).
+
+#### [NEW] [backend/services/pdf_processor.py](file:///d:/ai%20powered%20pdf%20assisstant/backend/services/pdf_processor.py)
+Extracts contents and handles indexing:
+- PyMuPDF text reader: Extracts text page-by-page.
+- OCR checks: If a page contains zero text, performs Tesseract OCR on page image snapshot.
+- Chunking helper: Recursively splits text into overlap chunks of ~500 characters, tagging each chunk with `doc_id`, `doc_name`, and `page_number`.
+
+#### [NEW] [backend/services/vector_store.py](file:///d:/ai%20powered%20pdf%20assisstant/backend/services/vector_store.py)
+Qdrant integration service:
+- Initializes `QdrantClient(path=QDRANT_PATH)` for local serverless vector persistence on disk.
+- Creates a collection `"pdf_chunks"` with vector size `768` (matching Gemini `text-embedding-004`).
+- Computes Gemini embeddings of text chunks on document upload and upserts them.
+- Performs cosine semantic search for a given question embedding and returns top hits with page numbers and names.
+
+#### [NEW] [backend/services/chat_rag.py](file:///d:/ai%20powered%20pdf%20assisstant/backend/services/chat_rag.py)
+RAG Logic Service:
+- Summarizes context, builds history, prompts Gemini 1.5/2.5 Flash.
+- Ensures the model answers *only* from PDF context.
+- Formats final response with citations (page numbers, matching text snippet, document name).
+
+#### [NEW] [backend/main.py](file:///d:/ai%20powered%20pdf%20assisstant/backend/main.py)
+Exposes FastAPI API endpoints:
+- `POST /upload`: Save PDF to disk, run background task for text extraction & Qdrant indexing.
+- `POST /chat`: Query endpoint. Takes current question, language ("en"/"hi"), conversation history, returns text response and source citations.
+- `GET /documents`: Return list of uploaded PDFs with metadata.
+- `DELETE /documents/{doc_id}`: Removes PDF from local space and deletes chunks from Qdrant vector database.
+- `GET /history`: Returns chat history.
+
+---
+
+### Frontend (React + TypeScript + Tailwind CSS)
+
+Create a Tailwind-styled Vite React app under a `frontend` folder.
+
+#### [NEW] [frontend/package.json](file:///d:/ai%20powered%20pdf%20assisstant/frontend/package.json)
+Tailwind CSS, Vite, Lucide-React, React-Speech-Kit or standard Web Speech integrations.
+
+#### [NEW] [frontend/tailwind.config.js](file:///d:/ai%20powered%20pdf%20assisstant/frontend/tailwind.config.js)
+Sets up Tailwind config with custom theme options (cool dark mode colors, glassmorphism utilities, gradients).
+
+#### [NEW] [frontend/src/index.css](file:///d:/ai%20powered%20pdf%20assisstant/frontend/src/index.css)
+Declares root layout, premium glassy elements, custom Google Fonts (`Outfit` for headings, `Inter` for body), and animation classes.
+
+#### [NEW] [frontend/src/App.tsx](file:///d:/ai%20powered%20pdf%20assisstant/frontend/src/App.tsx)
+The UI layout consisting of:
+- **Sidebar**:
+  - Drag-and-drop PDF dropzone showing uploading percentage/spinner.
+  - List of active documents (with page numbers, download/delete controls).
+- **Core Workspace**:
+  - Interactive conversation threads.
+  - Multilingual English / Hindi toggles.
+  - Citations display: shows the matching sections and page numbers at the bottom of each answer.
+  - Integrated speech: Speech-to-Text dynamic recording (using Web Speech API with sound wave preview) and Text-to-Speech playback button.
+- **Header**: Control tools, Status bar, dynamic Settings panel.
+
+#### [NEW] [frontend/src/api.ts](file:///d:/ai%20powered%20pdf%20assisstant/frontend/src/api.ts)
+Wrapper client functions communicating with Python FastAPI API endpoints.
+
+---
+
+## Verification Plan
+
+### Automated Verification
+We will run a script in `backend/verify_rag.py` that connects to local Qdrant, does a sample chunk embed, computes verification vectors, and queries Gemini. Let's run this to verify the pipeline components work without requiring manual frontend clicks.
+
+### Manual Verification
+1. **API Server Launch**: Start FastAPI server `uvicorn main:app --reload --port 8000` and check OpenAPI `/docs` auto-documentation.
+2. **Database Verification**: Ensure tables exist in MySQL when base server spins up.
+3. **Upload Workflow**: Upload dual PDFs (one vector PDF, one scanned image PDF). Verify PyMuPDF text reader handles the text PDF and pytesseract OCR handles the image PDF, creating correct vector indexes in Qdrant.
+4. **Chat Testing**: Send queries in English and Hindi. Verify response strictly uses context. Click TTS button to read response out loud. Speak into voice recorder to check STT function.

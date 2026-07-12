@@ -1,0 +1,86 @@
+# AI-Powered PDF Learning Assistant - Implementation Plan
+
+This implementation plan outlines the steps to build and enhance the AI-Powered PDF Learning Assistant. We will implement a robust Retrieval-Augmented Generation (RAG) system using FastAPI, Qdrant (for vector search), MySQL (for metadata), and a premium glassmorphic React frontend. 
+
+The enhancement focuses on satisfying the core user requirements:
+1. **Strict Context Adherence (Zero Hallucination)**: The AI will strictly answer from the uploaded PDF context. If the answer is not found, it will reply with a standard "Not found in PDF" message in the selected language.
+2. **Translation Support**: Adding a dynamic translation service to translate bot responses on the fly between English and Hindi.
+3. **Document Filtering**: Allowing students to select which uploaded PDFs to use as context for their questions.
+4. **Voice Input/Output (STT & TTS)**: Implementing voice recording/transcription and text-to-speech reading.
+5. **Premium Glassmorphic UI**: Elevating the interface with a modern, futuristic educational theme featuring micro-animations, glowing interactive buttons, and a voice wave visualizer.
+
+---
+
+## User Review Required
+
+> [!IMPORTANT]
+> - **Gemini API Key**: Make sure to add your Gemini API Key in `backend/.env` as `GEMINI_API_KEY=AIzaSy...` or input it via the Settings gear icon in the frontend.
+> - **MySQL Credentials**: The backend connects to MySQL on localhost using port 3306. Ensure your MySQL server is running and the database is configured in `backend/.env`.
+
+---
+
+## Open Questions
+
+- *Are there any specific Hindi translation preferences, or is Standard Devanagari Hindi translation using Gemini sufficient?*
+- *Should we add a "Select All" / "Deselect All" button for the PDF list in the sidebar to make managing large sets of PDFs easier?*
+
+---
+
+## Proposed Changes
+
+### Backend (Python + FastAPI)
+
+#### [MODIFY] [chat_rag.py](file:///d:/ai%20powered%20pdf%20assisstant/backend/services/chat_rag.py)
+- Refine the `SYSTEM_PROMPT` to make it strictly zero-hallucination. Instruct the model that if the answer is not directly present in the context, it must strictly answer: `"I'm sorry, I couldn't find an answer to that in the uploaded documents."` in English or `"मुझे क्षमा करें, मुझे अपलोड किए गए दस्तावेज़ों में इसका उत्तर नहीं मिला।"` in Hindi.
+- Add an explicit instruction to avoid extrapolation or assumption.
+
+#### [MODIFY] [main.py](file:///d:/ai%20powered%20pdf%20assisstant/backend/main.py)
+- Add a new `/translate` endpoint that takes a message and a target language (`hi` or `en`) and returns the translated text using Gemini.
+- Define a `TranslateRequest` schema.
+- Update `/chat` to accept and pass the selected document IDs (`doc_ids`) from the request body to the `get_answer` service.
+
+---
+
+### Frontend (React + TypeScript)
+
+#### [MODIFY] [api.ts](file:///d:/ai%20powered%20pdf%20assisstant/frontend/src/api.ts)
+- Add the `translateText` function to call the new `/translate` backend endpoint.
+- Ensure the `sendChat` function includes the `doc_ids` parameter.
+
+#### [MODIFY] [App.tsx](file:///d:/ai%20powered%20pdf%20assisstant/frontend/src/App.tsx)
+- **Document Selection**: 
+  - Add checkboxes next to each document in the sidebar to let users choose which documents to query.
+  - Maintain a state `selectedDocIds: Set<number>` to filter query context.
+  - Add "Select All" / "Clear Selection" buttons.
+- **Translation Button**:
+  - Add a "Translate to Hindi" / "Translate to English" button to each bot chat bubble.
+  - Show a loading spinner on the message while translation is in progress.
+- **Premium Voice Visualizer**:
+  - Show a pulsating voice wave animation when recording voice queries.
+- **TTS Toggle**:
+  - Improve readability and let users play/stop voice speech for any message.
+
+#### [MODIFY] [index.css](file:///d:/ai%20powered%20pdf%20assisstant/frontend/src/index.css)
+- Revamp stylesheet to match premium design principles.
+- Add glassmorphic containers (`backdrop-filter: blur(16px)`).
+- Implement animated glowing borders for active cards.
+- Add custom keyframes for the voice recording soundwave:
+  - `.voice-wave-container` and individual pulsing bars.
+- Improve typography (Outfit + Inter) and spacing.
+
+---
+
+## Verification Plan
+
+### Automated Tests
+- Create a verification script `backend/test_rag_strict.py` to:
+  - Query a known fact (returns answer with citations).
+  - Query an out-of-context fact (returns "I'm sorry, I couldn't find an answer to that in the uploaded documents.").
+  - Call the `/translate` API to check English to Hindi translation.
+
+### Manual Verification
+1. **Database Connection**: Run FastAPI server and verify database initialization.
+2. **PDF Upload & Select**: Upload 2 PDFs. Select only one PDF and query. Verify citations only include the selected PDF.
+3. **Strict RAG Test**: Ask something irrelevant to the PDF. Confirm it returns the "not found" text.
+4. **Translation Test**: Click the "Translate" button on a bot message. Verify the content translates to the other language correctly.
+5. **Speech Test**: Test the Speech-to-Text input with Hindi and English queries. Confirm it reads back correctly.

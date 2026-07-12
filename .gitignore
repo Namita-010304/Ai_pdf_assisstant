@@ -1,0 +1,31 @@
+# ─── Python ───
+venv/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+*.egg-info/
+dist/
+build/
+
+# ─── Environment (NEVER commit secrets!) ───
+.env
+.env.*
+!.env.example
+
+# ─── Backend local data ───
+backend/qdrant_db/
+backend/uploads/
+backend/*.db
+backend/*.sqlite
+
+# ─── Node / Frontend ───
+frontend/node_modules/
+frontend/dist/
+frontend/.env.local
+
+# ─── OS ───
+.DS_Store
+Thumbs.db
+desktop.ini

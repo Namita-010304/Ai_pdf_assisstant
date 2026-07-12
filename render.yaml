@@ -1,0 +1,18 @@
+services:
+  - type: web
+    name: pdf-assistant-backend
+    env: python
+    rootDir: backend
+    buildCommand: apt-get install -y tesseract-ocr && pip install -r requirements.txt
+    startCommand: uvicorn main:app --host 0.0.0.0 --port $PORT
+    envVars:
+      - key: DATABASE_URL
+        sync: false
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: QDRANT_URL
+        sync: false
+      - key: QDRANT_API_KEY
+        sync: false
+      - key: UPLOAD_DIR
+        value: /tmp/uploads
