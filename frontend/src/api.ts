@@ -4,6 +4,8 @@ export interface Document {
   id: number;
   filename: string;
   page_count: number;
+  chunk_count: number;
+  indexing_status: "pending" | "processing" | "ready" | "failed";
   upload_time: string;
 }
 

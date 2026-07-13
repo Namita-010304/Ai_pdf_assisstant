@@ -113,10 +113,16 @@ def _embed_query(text: str, api_key: str | None = None) -> list[float]:
     return result.embeddings[0].values
 
 
-def upsert_chunks(chunks: list[dict], api_key: str | None = None):
-    """Embed and store a list of chunks in Qdrant."""
+def upsert_chunks(chunks: list[dict], api_key: str | None = None) -> int:
+    """Embed and store a list of chunks in Qdrant. Returns number of chunks stored."""
+    if not chunks:
+        print("[WARNING] upsert_chunks called with empty list — nothing to store.")
+        return 0
+
     client = get_client()
     points = []
+
+    print(f"[INFO] Embedding {len(chunks)} chunks...")
 
     # Batch embedding requests to Gemini (e.g., in groups of 100)
     embed_batch_size = 100
@@ -125,9 +131,16 @@ def upsert_chunks(chunks: list[dict], api_key: str | None = None):
         texts = [c["text"] for c in chunk_batch]
         try:
             vectors = _embed_batch(texts, api_key)
+            print(f"[INFO] Embedded batch {i // embed_batch_size + 1}: {len(vectors)} vectors")
         except Exception as e:
             print(f"[ERROR] Batch embedding failed: {e}. Retrying individually as fallback.")
-            vectors = [_embed(t, api_key) for t in texts]
+            vectors = []
+            for j, t in enumerate(texts):
+                try:
+                    vectors.append(_embed(t, api_key))
+                except Exception as e2:
+                    print(f"[ERROR] Individual embed failed for chunk {i+j}: {e2}")
+                    raise
 
         for chunk, vector in zip(chunk_batch, vectors):
             point = PointStruct(
@@ -146,6 +159,10 @@ def upsert_chunks(chunks: list[dict], api_key: str | None = None):
     qdrant_batch_size = 50
     for i in range(0, len(points), qdrant_batch_size):
         client.upsert(collection_name=COLLECTION_NAME, points=points[i : i + qdrant_batch_size])
+        print(f"[INFO] Upserted batch to Qdrant: points {i+1}–{min(i+qdrant_batch_size, len(points))} of {len(points)}")
+
+    print(f"[INFO] Upsert complete: {len(points)} chunks stored in Qdrant.")
+    return len(points)
 
 
 def search_chunks(query: str, top_k: int = 5, doc_ids: list[int] | None = None, api_key: str | None = None) -> list[dict]:
@@ -178,6 +195,31 @@ def search_chunks(query: str, top_k: int = 5, doc_ids: list[int] | None = None, 
         }
         for r in response.points
     ]
+
+
+def count_chunks(doc_id: int) -> int:
+    """Return the number of chunks stored in Qdrant for a given doc_id."""
+    client = get_client()
+    result = client.count(
+        collection_name=COLLECTION_NAME,
+        count_filter=Filter(
+            must=[FieldCondition(key="doc_id", match=MatchValue(value=doc_id))]
+        ),
+        exact=True,
+    )
+    return result.count
+
+
+def get_collection_info() -> dict:
+    """Return total vector count and collection status for debugging."""
+    client = get_client()
+    info = client.get_collection(COLLECTION_NAME)
+    return {
+        "vectors_count": info.vectors_count,
+        "points_count": info.points_count,
+        "status": str(info.status),
+        "collection": COLLECTION_NAME,
+    }
 
 
 def delete_chunks_by_doc(doc_id: int):

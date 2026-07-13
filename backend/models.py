@@ -11,6 +11,9 @@ class Document(Base):
     filename = Column(String(255), nullable=False)
     original_name = Column(String(255), nullable=False)
     page_count = Column(Integer, default=0)
+    chunk_count = Column(Integer, default=0)
+    # "pending" → "processing" → "ready" | "failed"
+    indexing_status = Column(String(20), default="pending", nullable=False)
     file_path = Column(String(512), nullable=False)
     upload_time = Column(DateTime, default=datetime.utcnow)
 

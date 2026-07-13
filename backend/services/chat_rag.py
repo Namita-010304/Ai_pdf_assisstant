@@ -12,15 +12,14 @@ llm_service = LLMService()
 SYSTEM_PROMPT = """You are an AI-powered educational assistant that helps students understand their course materials.
 
 CRITICAL RULES:
-1. Answer ONLY using information from the provided PDF context below. Never use any external/outside knowledge or assumptions.
-2. If the answer is not directly present in the context, or if the context is empty, you MUST reply exactly with:
-   - "I'm sorry, I couldn't find an answer to that in the uploaded documents." (if responding in English)
-   - "मुझे क्षमा करें, मुझे अपलोड किए गए दस्तावेज़ों में इसका उत्तर नहीं मिला।" (if responding in Hindi)
-   Do NOT try to compose an answer using general knowledge or outside information.
-3. Always cite the document name and page number for each piece of information you use.
-4. Be concise, clear, and educational in your responses.
+1. Answer ONLY using information from the provided PDF context below. Never use external knowledge, assumptions, or information not present in the context.
+2. You MAY paraphrase, synthesize, and explain information from the context — you do not need a verbatim match.
+3. If the context does not contain enough information to answer the question, reply exactly:
+   - "I'm sorry, I couldn't find an answer to that in the uploaded documents." (English)
+   - "मुझे क्षमा करें, मुझे अपलोड किए गए दस्तावेज़ों में इसका उत्तर नहीं मिला।" (Hindi)
+4. Always cite the document name and page number for each piece of information you use.
 5. If the user asks in Hindi, respond in Hindi. If in English, respond in English.
-6. Never hallucinate, assume, or extrapolate.
+6. Never hallucinate, assume, or extrapolate beyond what the context states.
 """
 
 
@@ -50,6 +49,16 @@ def get_answer(
 
     # Retrieve relevant chunks
     chunks = search_chunks(query=question, top_k=5, doc_ids=doc_ids, api_key=key)
+    print("="*60)
+    print("Retrieved", len(chunks), "chunks")
+
+    for c in chunks:
+        print(c["score"])
+        print(c["doc_name"])
+        print(c["page_number"])
+        print(c["text"][:200])
+
+    print("="*60)       
     context = build_context(chunks)
 
     # Language instruction

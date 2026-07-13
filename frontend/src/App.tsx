@@ -48,7 +48,7 @@ export default function App() {
     loadDocuments();
   }, []);
 
-  // Poll for page count updates for processing docs
+  // Poll for indexing status updates for documents that are pending/processing
   useEffect(() => {
     if (processingDocs.size === 0) return;
     const interval = setInterval(async () => {
@@ -56,7 +56,12 @@ export default function App() {
       setDocuments(docs);
       setProcessingDocs((prev) => {
         const updated = new Set(prev);
-        docs.forEach((d) => { if (d.page_count > 0) updated.delete(d.id); });
+        docs.forEach((d) => {
+          // Stop polling once indexing is complete (success or failure)
+          if (d.indexing_status === "ready" || d.indexing_status === "failed") {
+            updated.delete(d.id);
+          }
+        });
         return updated;
       });
     }, 3000);
@@ -85,7 +90,10 @@ export default function App() {
     try {
       for (const file of pdfs) {
         const result = await uploadPDF(file);
-        setProcessingDocs((prev) => new Set([...prev, result.id]));
+        // Add to processing set — poll until indexing_status changes to ready/failed
+        if (result.indexing_status === "pending" || result.indexing_status === "processing") {
+          setProcessingDocs((prev) => new Set([...prev, result.id]));
+        }
         setSelectedDocIds((prev) => new Set([...prev, result.id]));
       }
       await loadDocuments();
@@ -157,9 +165,19 @@ export default function App() {
   }
 
   // ── Chat Send ──────────────────────────────────────────────────────────
+  // Check if any selected documents are still being indexed
+  const selectedDocsNotReady = documents.filter(
+    (d) => selectedDocIds.has(d.id) && d.indexing_status !== "ready"
+  );
+  const hasIndexingDocs = selectedDocsNotReady.length > 0;
+
   async function handleSend() {
     const q = question.trim();
     if (!q || isLoading) return;
+    if (hasIndexingDocs) {
+      alert(`⏳ Please wait — these documents are still being indexed:\n${selectedDocsNotReady.map(d => `• ${d.filename} (${d.indexing_status})`).join("\n")}`);
+      return;
+    }
 
     const userMsg: ChatMessage = { sender: "user", content: q, language };
     setMessages((prev) => [...prev, userMsg]);
@@ -373,11 +391,13 @@ export default function App() {
                   <div className="doc-icon">📄</div>
                   <div className="doc-info">
                     <div className="doc-name" title={doc.filename}>{doc.filename}</div>
-                    {processingDocs.has(doc.id) ? (
-                      <div className="doc-processing">⏳ Processing…</div>
+                    {doc.indexing_status === "pending" || doc.indexing_status === "processing" ? (
+                      <div className="doc-processing">⏳ {doc.indexing_status === "pending" ? "Queued…" : "Indexing…"}</div>
+                    ) : doc.indexing_status === "failed" ? (
+                      <div className="doc-processing" style={{ color: "#f87171" }}>❌ Indexing failed — try re-uploading</div>
                     ) : (
                       <div className="doc-meta">
-                        {doc.page_count > 0 ? `${doc.page_count} pages` : "Ready"} · {new Date(doc.upload_time).toLocaleDateString()}
+                        ✅ {doc.chunk_count > 0 ? `${doc.chunk_count} chunks` : doc.page_count > 0 ? `${doc.page_count} pages` : "Ready"} · {new Date(doc.upload_time).toLocaleDateString()}
                       </div>
                     )}
                   </div>
@@ -503,6 +523,8 @@ export default function App() {
                     ? "Please upload a PDF document in the sidebar first..."
                     : selectedDocIds.size === 0
                     ? "Please check at least one PDF in the sidebar..."
+                    : hasIndexingDocs
+                    ? "⏳ Waiting for document indexing to finish..."
                     : language === "hi"
                     ? "यहाँ प्रश्न पूछें…"
                     : "Ask a question about your PDFs…"
@@ -511,12 +533,12 @@ export default function App() {
                 onChange={handleTextareaInput}
                 onKeyDown={handleKeyDown}
                 rows={1}
-                disabled={documents.length === 0 || selectedDocIds.size === 0}
+                disabled={documents.length === 0 || selectedDocIds.size === 0 || hasIndexingDocs}
               />
               <button
                 className="btn btn-primary"
                 onClick={handleSend}
-                disabled={!question.trim() || isLoading || documents.length === 0 || selectedDocIds.size === 0}
+                disabled={!question.trim() || isLoading || documents.length === 0 || selectedDocIds.size === 0 || hasIndexingDocs}
                 style={{ height: 44, paddingLeft: 20, paddingRight: 20 }}
               >
                 Send ➤
