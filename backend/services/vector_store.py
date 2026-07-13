@@ -214,9 +214,14 @@ def get_collection_info() -> dict:
     """Return total vector count and collection status for debugging."""
     client = get_client()
     info = client.get_collection(COLLECTION_NAME)
+    # Use client.count() for compatibility with all qdrant-client versions
+    # (vectors_count / points_count were removed in newer SDK versions)
+    try:
+        total = client.count(collection_name=COLLECTION_NAME, exact=True).count
+    except Exception:
+        total = getattr(info, "points_count", None) or getattr(info, "vectors_count", None) or "unknown"
     return {
-        "vectors_count": info.vectors_count,
-        "points_count": info.points_count,
+        "points_count": total,
         "status": str(info.status),
         "collection": COLLECTION_NAME,
     }
