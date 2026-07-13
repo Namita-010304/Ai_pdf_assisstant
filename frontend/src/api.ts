@@ -36,7 +36,7 @@ export async function fetchDocuments(): Promise<Document[]> {
   return res.json();
 }
 
-export async function uploadPDF(file: File): Promise<{ id: number; filename: string; message: string }> {
+export async function uploadPDF(file: File): Promise<{ id: number; filename: string; message: string; indexing_status: string }> {
   const formData = new FormData();
   formData.append("file", file);
   const res = await fetch(`${API_BASE}/upload`, { method: "POST", body: formData });
