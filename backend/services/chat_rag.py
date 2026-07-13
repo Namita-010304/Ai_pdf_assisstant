@@ -47,8 +47,8 @@ def get_answer(
     """
     key = api_key or GEMINI_API_KEY
 
-    # Retrieve relevant chunks
-    chunks = search_chunks(query=question, top_k=5, doc_ids=doc_ids, api_key=key)
+    # Retrieve relevant chunks — top_k=8 casts a wider net for better coverage
+    chunks = search_chunks(query=question, top_k=8, doc_ids=doc_ids, api_key=key)
     print("="*60)
     print("Retrieved", len(chunks), "chunks")
 

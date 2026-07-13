@@ -46,7 +46,7 @@ def extract_text_from_pdf(file_path: str) -> list[dict]:
 
 
 def chunk_text(pages: list[dict], doc_id: int, doc_name: str,
-               chunk_size: int = 500, overlap: int = 100) -> list[dict]:
+               chunk_size: int = 800, overlap: int = 150) -> list[dict]:
     """
     Split page texts into overlapping chunks for better retrieval.
 
