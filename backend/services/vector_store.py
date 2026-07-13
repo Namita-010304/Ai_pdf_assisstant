@@ -91,16 +91,29 @@ def _embed(text: str, api_key: str | None = None) -> list[float]:
     return result.embeddings[0].values
 
 
+import concurrent.futures
+
 def _embed_batch(texts: list[str], api_key: str | None = None) -> list[list[float]]:
     if not texts:
         return []
-    gc = get_genai_client(api_key)
-    result = gc.models.embed_content(
-        model="gemini-embedding-2",
-        contents=texts,
-        config=types.EmbedContentConfig(task_type="RETRIEVAL_DOCUMENT"),
-    )
-    return [e.values for e in result.embeddings]
+    
+    # The new google-genai SDK treats a list of strings as a single multi-part prompt
+    # and returns only 1 embedding. We must embed them individually, but concurrently for speed.
+    vectors = [None] * len(texts)
+    
+    def _do_embed(idx: int, text: str):
+        vectors[idx] = _embed(text, api_key)
+        
+    with concurrent.futures.ThreadPoolExecutor(max_workers=10) as executor:
+        futures = [executor.submit(_do_embed, i, text) for i, text in enumerate(texts)]
+        concurrent.futures.wait(futures)
+        
+        # Check for any exceptions
+        for future in futures:
+            if future.exception() is not None:
+                raise future.exception()
+                
+    return vectors
 
 
 def _embed_query(text: str, api_key: str | None = None) -> list[float]:
